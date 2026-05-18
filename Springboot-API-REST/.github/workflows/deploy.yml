@@ -1,0 +1,75 @@
+name: CI/CD Backend Ventas - CITT Innovatech
+
+on:
+  push:
+    branches:
+      - deploy
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: citt-backend-ventas
+  EC2_HOST: 34.229.59.107
+
+jobs:
+  build-and-deploy:
+    name: Build → Push ECR → Deploy EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build imagen Docker
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+
+      - name: Push imagen a ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy en EC2 Backend
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region us-east-1 | \
+              docker login --username AWS --password-stdin \
+              996829654582.dkr.ecr.us-east-1.amazonaws.com
+            docker pull 996829654582.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
+            docker stop citt-ventas 2>/dev/null || true
+            docker rm   citt-ventas 2>/dev/null || true
+            docker run -d \
+              --name citt-ventas \
+              --restart unless-stopped \
+              --network citt-backend-net \
+              -p 8080:8080 \
+              -e DB_ENDPOINT=citt-mysql \
+              -e DB_PORT=3306 \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              996829654582.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
+            docker ps | grep citt-ventas
