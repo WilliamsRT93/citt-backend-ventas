@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: citt-backend-ventas
-  ECR_REGISTRY: 996829654582.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REGISTRY: 332579324003.dkr.ecr.us-east-1.amazonaws.com
 
 jobs:
   build-and-deploy:
@@ -51,8 +51,8 @@ jobs:
           script: |
             aws ecr get-login-password --region us-east-1 | \
               docker login --username AWS --password-stdin \
-              996829654582.dkr.ecr.us-east-1.amazonaws.com
-            docker pull 996829654582.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
+              332579324003.dkr.ecr.us-east-1.amazonaws.com
+            docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
             docker stop citt-ventas 2>/dev/null || true
             docker rm   citt-ventas 2>/dev/null || true
             docker run -d \
@@ -67,5 +67,5 @@ jobs:
               -e DB_USERNAME=citt_user \
               -e DB_PASSWORD=${{ secrets.DB_PASS }} \
               -e JAVA_OPTS="-Xms128m -Xmx256m" \
-              996829654582.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
+              332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
             docker ps | grep citt-ventas
