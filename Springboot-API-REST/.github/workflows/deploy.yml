@@ -1,4 +1,4 @@
-name: CI/CD Backend Ventas - Innovatech Chile
+name: CI/CD Backend Ventas - ITPCARGO CITT
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: innovatech-backend-ventas
+  ECR_REPOSITORY: citt-backend-ventas
   ECR_REGISTRY: 332579324003.dkr.ecr.us-east-1.amazonaws.com
   EC2_INSTANCE_ID: i-054cfd2c09a1f2d6a
 
@@ -50,11 +50,11 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
               "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 332579324003.dkr.ecr.us-east-1.amazonaws.com",
-              "docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest",
-              "docker stop innovatech-ventas 2>/dev/null || true",
-              "docker rm innovatech-ventas 2>/dev/null || true",
-              "docker run -d --name innovatech-ventas --restart unless-stopped -p 8080:8080 --memory=400m -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} -e DB_PORT=3306 -e DB_NAME=citt_ventas -e DB_USERNAME=${{ secrets.DB_USERNAME }} -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} 332579324003.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest",
-              "docker ps | grep innovatech-ventas"
+              "docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest",
+              "docker stop citt-ventas 2>/dev/null || true",
+              "docker rm citt-ventas 2>/dev/null || true",
+              "docker run -d --name citt-ventas --restart unless-stopped -p 8080:8080 --memory=400m -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} -e DB_PORT=3306 -e DB_NAME=citt_ventas -e DB_USERNAME=${{ secrets.DB_USERNAME }} -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest",
+              "docker ps | grep citt-ventas"
             ]' \
             --query 'Command.CommandId' --output text)
           echo "SSM Command ID: $COMMAND_ID"
