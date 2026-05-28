@@ -1,4 +1,4 @@
-name: CI/CD Backend Ventas - CITT Innovatech
+name: CI/CD Backend Ventas - Innovatech Chile
 
 on:
   push:
@@ -7,12 +7,13 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: citt-backend-ventas
-  EC2_HOST: 3.94.78.241
+  ECR_REPOSITORY: innovatech-backend-ventas
+  ECR_REGISTRY: 332579324003.dkr.ecr.us-east-1.amazonaws.com
+  EC2_INSTANCE_ID: i-054cfd2c09a1f2d6a
 
 jobs:
   build-and-deploy:
-    name: Build → Push ECR → Deploy EC2
+    name: Build → Push ECR → Deploy EC2 via SSM
     runs-on: ubuntu-latest
 
     steps:
@@ -28,39 +29,42 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build imagen Docker (multi-stage)
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build imagen Docker (multi-stage, usuario no root)
         run: |
           docker build \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./Springboot-API-REST
 
       - name: Push imagen a ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Deploy en EC2 Backend Ventas via docker-compose
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ env.EC2_HOST }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            aws ecr get-login-password --region us-east-1 | \
-              docker login --username AWS --password-stdin \
-              332579324003.dkr.ecr.us-east-1.amazonaws.com
-
-            docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest
-
-            cd /home/ec2-user/app
-            docker-compose up -d --force-recreate ventas
-            docker-compose ps
+      - name: Deploy en EC2 via AWS SSM (sin SSH)
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 332579324003.dkr.ecr.us-east-1.amazonaws.com",
+              "docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest",
+              "docker stop innovatech-ventas 2>/dev/null || true",
+              "docker rm innovatech-ventas 2>/dev/null || true",
+              "docker run -d --name innovatech-ventas --restart unless-stopped -p 8080:8080 --memory=400m -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} -e DB_PORT=3306 -e DB_NAME=citt_ventas -e DB_USERNAME=${{ secrets.DB_USERNAME }} -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} 332579324003.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest",
+              "docker ps | grep innovatech-ventas"
+            ]' \
+            --query 'Command.CommandId' --output text)
+          echo "SSM Command ID: $COMMAND_ID"
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID"
+          STATUS=$(aws ssm list-command-invocations \
+            --command-id "$COMMAND_ID" \
+            --details \
+            --query 'CommandInvocations[0].Status' \
+            --output text)
+          echo "Deploy status: $STATUS"
+          if [ "$STATUS" != "Success" ]; then exit 1; fi
