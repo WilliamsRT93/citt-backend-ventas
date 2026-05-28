@@ -51,6 +51,8 @@ jobs:
             --parameters 'commands=[
               "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 332579324003.dkr.ecr.us-east-1.amazonaws.com",
               "docker pull 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest",
+              "docker stop innovatech-ventas 2>/dev/null || true",
+              "docker rm innovatech-ventas 2>/dev/null || true",
               "docker stop citt-ventas 2>/dev/null || true",
               "docker rm citt-ventas 2>/dev/null || true",
               "docker run -d --name citt-ventas --restart unless-stopped -p 8080:8080 --memory=400m -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} -e DB_PORT=3306 -e DB_NAME=citt_ventas -e DB_USERNAME=${{ secrets.DB_USERNAME }} -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} 332579324003.dkr.ecr.us-east-1.amazonaws.com/citt-backend-ventas:latest",
